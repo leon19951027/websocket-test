@@ -7,8 +7,6 @@ import (
 )
 
 func main() {
-	//neverdone := make(chan bool)
-	//	num := make(chan int)
 	DogChan := make(chan int, 1)
 	CatChan := make(chan int)
 	FishChan := make(chan int)

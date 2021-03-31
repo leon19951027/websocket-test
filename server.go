@@ -8,14 +8,22 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Client struct {
+	wsconn *websocket.Conn
+	roomID int
+}
+
+var messagechan = make(chan []byte)
+var onlinemap = make(map[string]*Client)
+
 func main() {
 	g := gin.Default()
-	g.Use(MiddleJWT())
-	g.GET("/ws", StartWs)
+	//	g.Use(MiddleJWT())
+	g.GET("/ws", Chat)
 	g.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{"code": "200"})
 	})
-
+	go Push()
 	g.Run(":8080")
 }
 
@@ -34,8 +42,12 @@ func MiddleJWT() gin.HandlerFunc {
 	}
 }
 
-func StartWs(c *gin.Context) {
-	//log.Println(c.Request.RemoteAddr, c.Request.RequestURI)
+func Chat(c *gin.Context) {
+	ip := c.Request.RemoteAddr
+	roomid := c.Query("roomid")
+	log.Println(roomid)
+	welcome := "欢迎用户:  " + ip + " roomid:" + roomid
+	messagechan <- []byte(welcome)
 	var upgrader = websocket.Upgrader{
 		// 解决跨域问题
 		CheckOrigin: func(r *http.Request) bool {
@@ -49,12 +61,16 @@ func StartWs(c *gin.Context) {
 		return
 	}
 	defer msg.Close()
-	go read(msg)
+	go HandleConn(msg, roomid)
 	select {}
 }
 
-func read(c *websocket.Conn) {
+func HandleConn(c *websocket.Conn, uniq string) {
+	Cli := &Client{
+		wsconn: c,
+	}
 
+	onlinemap[uniq] = Cli
 	defer func() {
 		//捕获read抛出的panic
 		if err := recover(); err != nil {
@@ -63,14 +79,28 @@ func read(c *websocket.Conn) {
 	}()
 
 	for {
+
 		_, message, err := c.ReadMessage()
-		log.Println("client message", string(message), c.RemoteAddr())
-		c.WriteMessage(1, []byte("pong"))
-		if err != nil { // 离线通知
-			//	offline <- c
-			log.Println("ReadMessage error1", err)
-			break
+		log.Println(string(message))
+		messagechan <- message
+
+		if err != nil {
+			log.Println("离线", uniq)
+			return
 		}
 
 	}
+}
+
+func Push() {
+
+	for {
+		select {
+		case msg := <-messagechan:
+			for _, v := range onlinemap {
+				v.wsconn.WriteMessage(1, msg)
+			}
+		}
+	}
+
 }
