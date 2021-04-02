@@ -73,14 +73,14 @@ func Chat(c *gin.Context) {
 	defer msg.Close()
 	go HandleConn(*Cli, isDone)
 	<-isDone
+	return
 }
 
 func HandleConn(cli Client, isDone chan bool) {
 
 	fmt.Println("----------------")
 
-	CliSlice = append(CliSlice, cli)
-	onlinemap[cli.roomID] = CliSlice
+	onlinemap[cli.roomID] = append(onlinemap[cli.roomID], cli)
 
 	defer func() {
 		//捕获read抛出的panic
