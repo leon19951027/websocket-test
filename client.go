@@ -32,7 +32,7 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/ws", ForceQuery: true, RawQuery: "roomid=1"}
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/ws", ForceQuery: true, RawQuery: "roomid=2"}
 
 	log.Printf("connecting to %s", u.String())
 

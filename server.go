@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -10,11 +11,13 @@ import (
 
 type Client struct {
 	wsconn *websocket.Conn
-	roomID int
+	roomID string
+	ip     string
 }
 
+var CliSlice []Client
 var messagechan = make(chan []byte)
-var onlinemap = make(map[string]*Client)
+var onlinemap = make(map[string][]Client)
 
 func main() {
 	g := gin.Default()
@@ -23,7 +26,7 @@ func main() {
 	g.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{"code": "200"})
 	})
-	go Push()
+	//	go Push()
 	g.Run(":8080")
 }
 
@@ -43,11 +46,13 @@ func MiddleJWT() gin.HandlerFunc {
 }
 
 func Chat(c *gin.Context) {
+	isDone := make(chan bool)
 	ip := c.Request.RemoteAddr
 	roomid := c.Query("roomid")
+
 	log.Println(roomid)
-	welcome := "欢迎用户:  " + ip + " roomid:" + roomid
-	messagechan <- []byte(welcome)
+	//welcome := "欢迎用户:  " + ip + " roomid:" + roomid
+	//	messagechan <- []byte(welcome)
 	var upgrader = websocket.Upgrader{
 		// 解决跨域问题
 		CheckOrigin: func(r *http.Request) bool {
@@ -56,21 +61,27 @@ func Chat(c *gin.Context) {
 	}
 
 	msg, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	Cli := &Client{
+		wsconn: msg,
+		roomID: roomid,
+		ip:     ip,
+	}
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	defer msg.Close()
-	go HandleConn(msg, roomid)
-	select {}
+	go HandleConn(*Cli, isDone)
+	<-isDone
 }
 
-func HandleConn(c *websocket.Conn, uniq string) {
-	Cli := &Client{
-		wsconn: c,
-	}
+func HandleConn(cli Client, isDone chan bool) {
 
-	onlinemap[uniq] = Cli
+	fmt.Println("----------------")
+
+	CliSlice = append(CliSlice, cli)
+	onlinemap[cli.roomID] = CliSlice
+
 	defer func() {
 		//捕获read抛出的panic
 		if err := recover(); err != nil {
@@ -80,27 +91,25 @@ func HandleConn(c *websocket.Conn, uniq string) {
 
 	for {
 
-		_, message, err := c.ReadMessage()
+		_, message, err := cli.wsconn.ReadMessage()
 		log.Println(string(message))
-		messagechan <- message
+
+		go Push(onlinemap[cli.roomID], message)
 
 		if err != nil {
-			log.Println("离线", uniq)
-			return
+			log.Println("离线", cli)
+			isDone <- true
+
 		}
 
 	}
+	return
 }
 
-func Push() {
+func Push(CliSlice []Client, message []byte) {
 
-	for {
-		select {
-		case msg := <-messagechan:
-			for _, v := range onlinemap {
-				v.wsconn.WriteMessage(1, msg)
-			}
-		}
+	for k, _ := range CliSlice {
+		go CliSlice[k].wsconn.WriteMessage(1, message)
 	}
-
+	return
 }
