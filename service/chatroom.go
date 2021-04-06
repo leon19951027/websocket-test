@@ -16,8 +16,8 @@ func (s Service) Chat(c *gin.Context) {
 	roomid := c.Query("roomid")
 
 	log.Println(roomid)
-	//welcome := "欢迎用户:  " + ip + " roomid:" + roomid
-	//	messagechan <- []byte(welcome)
+	welcome := "欢迎用户:  " + ip + " roomid:" + roomid
+	go Push(s.Broadcaster.Onlinemap[roomid], []byte(welcome))
 	var upgrader = websocket.Upgrader{
 		// 解决跨域问题
 		CheckOrigin: func(r *http.Request) bool {
@@ -35,7 +35,6 @@ func (s Service) Chat(c *gin.Context) {
 		log.Println(err)
 		return
 	}
-	log.Println(Cli)
 	defer msg.Close()
 	go s.HandleConn(*Cli, isDone)
 	<-isDone
@@ -47,28 +46,21 @@ func (s Service) HandleConn(cli Client, isDone chan bool) {
 	s.Broadcaster.Onlinemap[cli.RoomID] = append(s.Broadcaster.Onlinemap[cli.RoomID], cli)
 
 	defer func() {
-		//捕获read抛出的panic
 		if err := recover(); err != nil {
 			log.Println("read发生错误", err)
 		}
 	}()
 
 	for {
-
 		_, message, err := cli.Wsconn.ReadMessage()
 		log.Println(string(message))
-
 		go Push(s.Broadcaster.Onlinemap[cli.RoomID], message)
-
 		if err != nil {
 			log.Println("离线", cli)
 			isDone <- true
 			return
-
 		}
-
 	}
-
 }
 
 func Push(roomClients []Client, message []byte) {

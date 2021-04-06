@@ -14,7 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var addr = flag.String("addr", "192.168.1.180:8080", "http service address")
+var addr = flag.String("addr", "127.0.0.1:8080", "http service address")
 
 func getKeyborad(message chan string) {
 	for {
