@@ -106,10 +106,10 @@ func HandleConn(cli Client, isDone chan bool) {
 	return
 }
 
-func Push(CliSlice []Client, message []byte) {
-
-	for k, _ := range CliSlice {
-		go CliSlice[k].wsconn.WriteMessage(1, message)
+func Push(roomClients []Client, message []byte) {
+	log.Println(roomClients)
+	for _, v := range roomClients {
+		go v.wsconn.WriteMessage(1, message)
 	}
 	return
 }
